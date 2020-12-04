@@ -1,9 +1,7 @@
 package main
 
 import (
-	"database/sql"
 	"encoding/json"
-	"fmt"
 	"log"
 	"math/rand"
 	"net/http"
@@ -29,6 +27,12 @@ type Result struct {
 	TypeScore string `json:"typeScore"`
 }
 
+type SumResult struct {
+	Sportsman  string `json:"sportsman"`
+	FinalScore int32  `json:"finalScore"`
+}
+
+var sumResult SumResult
 var results []Result
 
 //API
@@ -56,59 +60,50 @@ func createResult(w http.ResponseWriter, r *http.Request) {
 	results = append(results, result)
 	json.NewEncoder(w).Encode(result)
 }
+func sumarryResult(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	var sumDFirstWave int32
+	var sumDSecondWave int32
 
-// работа с БД
-func pushDataDB() {
-	connStr := "user=postgres password=mypass dbname=productdb sslmode=disable"
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		panic(err)
-	}
-	defer db.Close()
+	var sumEFirstWave int32
+	var sumESecondWave int32
 
-	result, err := db.Exec("insert into Products (model, company, price) values ('iPhone X', $1, $2)",
-		"Apple", 72000)
-	if err != nil {
-		panic(err)
+	var finalResult int32
+	//params := mux.Vars(r)
+	for _, item := range results {
+		if item.TypeScore == "d1" || item.TypeScore == "d2" {
+			sumDFirstWave += item.Score
+
+		}
+		if item.TypeScore == "d3" || item.TypeScore == "d4" {
+			sumDSecondWave += item.Score
+		}
+		if item.TypeScore == "e1" || item.TypeScore == "e2" {
+			sumEFirstWave += item.Score
+		} else {
+			sumESecondWave += item.Score
+		}
+
+		finalResult = (sumDFirstWave/2 + sumDSecondWave/2) + (sumEFirstWave/2 + sumESecondWave/2)
 	}
-	fmt.Println(result.LastInsertId()) // не поддерживается
-	fmt.Println(result.RowsAffected()) // количество добавленных строк
+	sumResult.FinalScore = finalResult
+	sumResult.Sportsman = results[0].Sportsman
+	json.NewEncoder(w).Encode(&SumResult{})
 }
 
-func getDataDB() {
-	// connStr := "user=postgres password=mypass dbname=productdb sslmode=disable"
-	// db, err := sql.Open("postgres", connStr)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// defer db.Close()
-
-	// rows, err := db.Query("select * from Products")
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// defer rows.Close()
-	// products := []product{}
-
-	// for rows.Next() {
-	// 	p := product{}
-	// 	err := rows.Scan(&p.id, &p.model, &p.company, &p.price)
-	// 	if err != nil {
-	// 		fmt.Println(err)
-	// 		continue
-	// 	}
-	// 	products = append(products, p)
-	// }
-	// for _, p := range products {
-	// 	fmt.Println(p.id, p.model, p.company, p.price)
-	// }
-}
 func main() {
 	r := mux.NewRouter()
 
 	results = append(results, Result{ID: "2", Referee: "Анатолий Сумаилов Тигранович", Score: 9, Sportsman: "Дарья Кунцевич", TypeScore: "d1"})
 	r.HandleFunc("/results", getResults).Methods("GET")
-	r.HandleFunc("/results/{id}", getResult).Methods("GET")
-	r.HandleFunc("/results", createResult).Methods("POST")
+	r.HandleFunc("/results/{sportsman}", getResult).Methods("GET")
+	if len(results) <= 10 {
+		r.HandleFunc("/results", createResult).Methods("POST")
+	}
+	if len(results) == 10 {
+		r.HandleFunc("/results/finalResult", sumarryResult).Methods("GET")
+
+	}
+
 	log.Fatal(http.ListenAndServe(":8000", r))
 }
