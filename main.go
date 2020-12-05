@@ -32,7 +32,12 @@ type SumResult struct {
 	FinalScore int32  `json:"finalScore"`
 }
 
+type Sportsman struct {
+	Name string `json:"name`
+}
+
 var sumResult SumResult
+var sportsman Sportsman
 var results []Result
 
 //API
@@ -51,6 +56,9 @@ func getResult(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	json.NewEncoder(w).Encode(&Result{})
+}
+func getCurrentSportsman(w http.ResponseWriter, r *http.Request) {
+
 }
 func createResult(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
@@ -96,6 +104,7 @@ func main() {
 
 	results = append(results, Result{ID: "2", Referee: "Анатолий Сумаилов Тигранович", Score: 9, Sportsman: "Дарья Кунцевич", TypeScore: "d1"})
 	r.HandleFunc("/results", getResults).Methods("GET")
+	r.HandleFunc("/results/sportsman", getCurrentSportsman).Methods("GET")
 	r.HandleFunc("/results/{sportsman}", getResult).Methods("GET")
 	if len(results) <= 10 {
 		r.HandleFunc("/results", createResult).Methods("POST")
