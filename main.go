@@ -12,6 +12,7 @@ import (
 
 	"github.com/rs/cors"
 	"gopkg.in/mgo.v2"
+
 	"gopkg.in/mgo.v2/bson"
 )
 
@@ -87,7 +88,12 @@ var results []Result
 var numberCurrentSportsman int32 = 0
 
 //API
-
+func finallyResults(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	var sumResult SumResult
+	_ = json.NewDecoder(r.Body).Decode(&sumResult)
+	readResult(sumResult)
+}
 func getResults(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(results)
@@ -133,10 +139,11 @@ func getSportsmans(w http.ResponseWriter, r *http.Request) {
 }
 func getCurrentSportsman(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	numberCurrentSportsman++
+
 	result := getSportsmanDB()
 	currenctSportsman = result[numberCurrentSportsman]
 	json.NewEncoder(w).Encode(result[numberCurrentSportsman])
+	numberCurrentSportsman++
 }
 
 func createResult(w http.ResponseWriter, r *http.Request) {
@@ -255,6 +262,43 @@ func createSportsmanDB(sportsman Sportsman) {
 	}
 	session.Close()
 }
+func readResult(sumResult SumResult) []SumResult {
+	// открываем соединение
+	var sumResultJson []SumResult
+	session, err := mgo.Dial("mongodb://127.0.0.1")
+	if err != nil {
+		panic(err)
+
+	}
+	defer session.Close()
+
+	// получаем коллекцию
+	userCollection := session.DB("sportsmanDatadb").C("resultsEvent")
+	// критерий выборки
+	query := bson.M{}
+	// объект для сохранения результата
+	results := []finalResultsSportsmans{}
+
+	userCollection.Find(query).Sort("sumOfPoint").All(&results)
+
+	for _, u := range results {
+
+		sumResultJson = append(sumResultJson, SumResult{
+			BirthYear:       u.BirthYear,
+			NameSportsmans:  u.NameSportsmans,
+			CurrentCategory: u.CurrentCategory,
+			DesiredCategory: u.DesiredCategory,
+			Coaches:         u.Coaches,
+			FirstType:       u.FirstType,
+			SecondType:      u.SecondType,
+			ThirdTType:      u.ThirdTType,
+			FourthType:      u.FourthType,
+			SumOfPoint:      u.SumOfPoint})
+	}
+
+	session.Close()
+	return sumResultJson
+}
 func writeResult(sumResult SumResult) {
 	// открываем соединение
 	session, err := mgo.Dial("mongodb://127.0.0.1")
@@ -312,6 +356,7 @@ func userOwnerDB(user User) []User {
 	}
 	// объект для сохранения результата
 	users := []UserDB{}
+
 	userCollection.Find(query).All(&users)
 
 	for _, u := range users {
@@ -397,14 +442,15 @@ func main() {
 	r.HandleFunc("/results/currentSportsmans", getCurrentSportsman).Methods("GET")
 	r.HandleFunc("/sportsmans/createSportsmans", createSportsman).Methods("POST")
 	r.HandleFunc("/results", getResults).Methods("GET")
-
+	r.HandleFunc("/results/finallyResults", finallyResults).Methods("GET")
 	r.HandleFunc("/results/{sportsman}", getResult).Methods("GET")
 
-	if len(results) <= 10 {
+	if len(results) < 10 {
 		r.HandleFunc("/results/newResult", createResult).Methods("POST")
 	}
 	if len(results) == 10 {
 		r.HandleFunc("/results/finalResult", sumarryResult).Methods("GET")
+		results = nil
 
 	}
 	log.Fatal(http.ListenAndServe(":8000", c.Handler(r)))
